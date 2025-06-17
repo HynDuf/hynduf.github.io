@@ -9,7 +9,7 @@ tags:
   - IELTS
 ---
 
-Như mọi người đã biết (hoặc chưa biết), vừa rồi mình có đạt được 8.0 IELTS ở lần thi đầu tiên trong khoảng 1 tháng tự học. Mình sẽ đi thẳng vào những gì mình đã làm được nhé.
+Như mọi người đã biết (hoặc chưa biết), vừa rồi mình có đạt được 8.0 IELTS ở lần thi đầu tiên trong khoảng 1 tháng tự học (mỗi ngày 4-7 tiếng tùy ngày). Mình sẽ đi thẳng vào những gì mình đã làm được nhé.
 
 Trước khi tập trung học IELTS thì mình nghĩ là khả năng của mình như sau:
 - R: 8.0 - 8.5
@@ -40,11 +40,12 @@ Kết quả mình đạt được 😁:
 - **Cách luyện đề ( > 2 tuần trước khi thi)**:
     - Chọn 1 đề/bài đọc (mình thường làm CAM ở trên [https://study4.com/](https://study4.com/))
     - Mục tiêu sẽ là bạn phải **hiểu** được **toàn bộ từng câu** của các bài đọc (để đạt điểm R cao thì không nhất thiết nhưng mà mục tiêu sẽ là như thế). 
-        1. Đọc một câu mà không hiểu rõ nghĩa
-        2. Xác định lí do mình không hiểu (từ vựng, ngữ pháp, ...)
-        3. Note lại để thêm thẻ của câu đó vào Anki
+        1. Đọc một câu mà không hiểu rõ nghĩa.
+        2. Xác định lí do mình không hiểu (từ vựng, ngữ pháp, ...). 
+        3. Note lại để thêm thẻ của câu đó vào Anki.
+            - Đây là cách mình gợi ý. Giả sử câu đó có vài từ mới thì mỗi từ mới sẽ làm 1 thẻ Anki và gạch chân in đậm chỗ từ mới đó. Tương tự với ngữ pháp thì gạch chân in đậm phần ngữ pháp đó, có thể thêm câu ví dụ... tùy vào người học cảm thấy phù hợp và có ích cho việc ôn luyện thẻ này.
+    - Sau khi đã hiểu hết bài viết thì cố gắng trả lời các câu hỏi và nếu sai thì quan trọng nhất là phải hiểu vì sao sai. Kiểu phản biện lại đáp án để nhận ra lí do mình không "chấp nhận" đáp án đó là đáp án đúng. Sau đó có thể note lại vào trong Anki luôn để mình không lặp lại lỗi sai đó nữa. Note lại như thế nào sẽ là tùy người học rút ra được điều gì, từ đó nếu cần thiết thì thêm thẻ Anki sao cho phù hợp.
 
-    - Sau khi đã hiểu hết bài viết thì cố gắng trả lời các câu hỏi và nếu sai thì quan trọng nhất là phải hiểu vì sao sai (có thể note lại vào trong Anki luôn để mình không lặp lại lỗi sai đó nữa).
     - Tổng thời gian cần để luyện tùy vào năng lực. Bạn cũng có thể chỉ luyện 1 passage thôi nếu không có nhiều thời gian.
 
 
@@ -59,7 +60,7 @@ Kết quả mình đạt được 😁:
 - Kĩ năng này khó để cải thiện nhanh và bắt buộc bạn phải nghe nhiều.
 - **Cách luyện tập**:
     - Nghe chủ động (Nghe chép chính tả): 
-        - Chọn 1 bài nghe/1 video Youtube
+        - Chọn 1 bài nghe (có thể lấy 1 passage của CAM trên study4 để luyện)/1 video Youtube
         - Với từng câu một, chép chính tả + đảm bảo rằng bạn nghe hiểu được từng câu một. Nghe lại 2 - 3 lần nếu vẫn không ra thì xem sub/transcript. Sau đó nghe lại lần nữa và phân tích lí do mình không nghe ra là gì.
     - Nghe bán chủ động (đối với những bạn đã có thể nghe tương đối tốt):
         - Chọn 1 video Youtube về các chủ đề yêu thích của bản thân
