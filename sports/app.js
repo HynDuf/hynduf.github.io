@@ -361,7 +361,7 @@ function sv(tag, attrs, text) {
 }
 
 const ballmark = () => el("span", { class: "ballmark" });
-const tagChip = (tag) => el("span", { class: "tagc " + (tag === "home" ? "home" : "onli") }, tag === "home" ? "Home" : "Online");
+const tagPill = (tag) => el("span", { class: "tagc " + (tag === "home" ? "home" : "onli") }, tag === "home" ? "Home" : "Online");
 const formNode = (marks, slots = marks.length) => el("div", { class: "form" }, [
   ...Array.from({ length: Math.max(0, slots - marks.length) }, () => el("b", { class: "E" }, "")),
   ...marks.map((m) => el("b", { class: m }, m)),
@@ -727,7 +727,7 @@ function playerChart(cs, mode, logged) {
     const c = cs[i], dv = r6(c.close - c.open);
     layer.append(sv("line", { x1: gx, x2: gx, y1: T, y2: H - B, stroke: css("--chalk"), "stroke-opacity": 0.55, "stroke-dasharray": "3 3" }));
     if (line) layer.append(sv("circle", { cx: gx, cy: y(c.close), r: 5.5, fill: css("--ball"), stroke: css("--board"), "stroke-width": 1.5 }));
-    return { node: marks[i], nodes: [el("div", { class: "facts" }, tagChip(c.tag), el("span", { class: "res " + tone(dv) }, pnlParts(dv)),
+    return { node: marks[i], nodes: [el("div", { class: "facts" }, tagPill(c.tag), el("span", { class: "res " + tone(dv) }, pnlParts(dv)),
       el("span", { class: "sub" }, `${fmt(c.open)} → ${fmt(c.close)}`),
       logged?.[i] ? el("span", { class: "sub" }, `high ${fmt(c.high)} / low ${fmt(c.low)}`) : null)] };
   });
@@ -871,14 +871,15 @@ async function copyLink(pill, url, shown = url) {
   pill.flash = setTimeout(() => { pill.classList.remove("done"); btn.replaceChildren(icon("copy")); }, 1500);
 }
 
-// A game link's host names the real activity, so it never shows on the page: only the end of its code.
-const gameCode = (url) => { try { return "…" + new URL(url).pathname.split("/").filter(Boolean).at(-1).slice(-6); } catch { return "…"; } };
+// Game and entry hosts name the real activity, so they never show on the page: only the end of the code.
+const HIDDEN = new Set(["game", "entry"]);
+const tailCode = (url) => { try { return "…" + new URL(url).pathname.split("/").filter(Boolean).at(-1).slice(-6); } catch { return "…"; } };
 
 function pillNode(label, url, kind) {
-  const shown = kind === "game" ? gameCode(url) : shortUrl(url);
-  const pill = el("span", { class: "pill" }, el("a", { class: "cl", href: url, target: "_blank", rel: "noopener noreferrer", ...(kind === "game" ? {} : { title: url }) },
+  const hide = HIDDEN.has(kind), shown = hide ? tailCode(url) : shortUrl(url);
+  const pill = el("span", { class: "pill" }, el("a", { class: "cl", href: url, target: "_blank", rel: "noopener noreferrer", ...(hide ? {} : { title: url }) },
     el("i", {}, label), el("span", { class: "cu" }, shown)));
-  pill.append(el("button", { type: "button", class: "cc", "aria-label": "Copy link", title: "Copy link", onclick: () => copyLink(pill, url, kind === "game" ? `${label} ${shown}` : url) }, icon("copy")));
+  pill.append(el("button", { type: "button", class: "cc", "aria-label": "Copy link", title: "Copy link", onclick: () => copyLink(pill, url, hide ? `${label} ${shown}` : url) }, icon("copy")));
   return pill;
 }
 
@@ -890,7 +891,7 @@ function auditNode(links) {
 function dayRow(r, md) {
   let open = S.open.has(r.n), box = open ? detailNode(md) : null;
   const row = el("button", { type: "button", class: "md" + (open ? " open" : ""), "aria-expanded": String(open), "data-n": r.n },
-    el("span", { class: "d" }, dayLabel(r.date)), tagChip(r.tag), el("span", { class: "p" }, `${r.players} players`),
+    el("span", { class: "d" }, dayLabel(r.date)), tagPill(r.tag), el("span", { class: "p" }, `${r.players} players`),
     el("span", { class: "w " + tone(r.topNet) }, `${r.topName} `, pnlParts(r.topNet)));
   row.addEventListener("click", () => {
     open = !open;
@@ -907,7 +908,7 @@ const edgeNode = (x) => el("span", { class: tone(x.net) || null }, x.name + " " 
 function settleNode(g, byN) {
   const entries = [...new Set(g.rows.filter((r) => r.tag === "online").flatMap((r) => (byN.get(r.n).audit ?? []).filter((a) => a.kind === "entry").map((a) => a.url)))];
   return el("div", { class: "sset" }, el("div", { class: "snets" }, g.nets.map((x) => el("div", { class: "sn" }, el("a", { href: "#player-" + x.person }, x.name),
-    el("span", { class: "w " + tone(x.net) }, pnlParts(x.net))))), entries.length ? el("div", { class: "pills" }, entries.map((u) => pillNode("Online entry", u))) : null);
+    el("span", { class: "w " + tone(x.net) }, pnlParts(x.net))))), entries.length ? el("div", { class: "pills" }, entries.map((u) => pillNode("Online entry", u, "entry"))) : null);
 }
 
 function groupNode(g, byN) {
@@ -959,7 +960,7 @@ function playerView(person) {
   });
   const rowsNode = mine.slice().reverse().map((m) => {
     const p = m.players.find((q) => q.person === person);
-    return el("a", { class: "md link", href: "#history-" + m.n }, el("span", { class: "d" }, dayLabel(m.date)), tagChip(m.tag),
+    return el("a", { class: "md link", href: "#history-" + m.n }, el("span", { class: "d" }, dayLabel(m.date)), tagPill(m.tag),
       el("span", { class: "p" }, p.handle != null ? el("span", { class: "hn" }, p.handle) : null, p.device != null ? el("span", { class: "dev" }, p.device) : null),
       el("span", { class: "w " + tone(p.net) }, pnlParts(p.net)), chev());
   });
@@ -1062,7 +1063,7 @@ function stageNode(h, md) {
   back.addEventListener("click", () => { stop(); if (i > 0) i--; paint(); });
   S.stop = stop;
   paint();
-  const meta = el("div", { class: "hlmeta" }, el("b", {}, dayLabel(md.date)), tagChip(md.tag), el("b", {}, `Rally ${h.hand}${h.of ? " of " + h.of : ""}`));
+  const meta = el("div", { class: "hlmeta" }, el("b", {}, dayLabel(md.date)), tagPill(md.tag), el("b", {}, `Rally ${h.hand}${h.of ? " of " + h.of : ""}`));
   return el("div", { class: "stage" },
     el("div", { class: "court" }, meta, boardBox, el("div", { class: "take" }, ballmark(), totalEl)),
     seatsBox, ticker, el("div", { class: "hlsum" }, summary(h)),

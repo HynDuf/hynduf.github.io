@@ -86,7 +86,7 @@ a.link:active, a.link.press { background: color-mix(in srgb, var(--board), var(-
 a.link:focus-visible { outline: 2px solid var(--ball); outline-offset: -2px; }
 .link .chev { font: 600 24px/1 var(--disp); text-align: right; opacity: .3; transition: opacity .12s, transform .12s; }
 a.link:hover .chev, a.link:focus-visible .chev { opacity: 1; transform: translateX(2px); }
-a.md { grid-template-columns: 96px 62px minmax(0, 1fr) 70px 150px 22px; padding-right: 10px; }
+a.md { grid-template-columns: 80px 58px minmax(0, 1fr) 70px 150px 22px; padding-right: 10px; }
 .pnl { display: inline-flex; align-items: center; gap: 6px; justify-content: flex-end; }
 .pnl .ballmark { width: 14px; height: 14px; }
 .row.head > div.pnlh { display: flex; justify-content: flex-end; }
@@ -116,7 +116,7 @@ a.nm:hover, a.who:hover, .detail a:hover { text-decoration: underline; text-unde
 .gatebox .go:disabled { opacity: .6; cursor: progress; }
 .gatebox .err { margin-top: 10px; color: var(--down); font-size: 14px; min-height: 21px; }
 
-.md { display: grid; grid-template-columns: 96px 62px minmax(0, 1fr) 70px 150px; align-items: center; min-height: 44px; width: 100%;
+.md { display: grid; grid-template-columns: 80px 58px minmax(0, 1fr) 70px 150px; column-gap: 16px; align-items: center; min-height: 44px; width: 100%;
   border-bottom: 1px solid var(--board-line); padding: 0 14px; font-variant-numeric: tabular-nums; }
 .sb > .md:last-child { border-bottom: 0; }
 button.md:hover { background: var(--court-deep); }
@@ -124,7 +124,7 @@ button.md:hover { background: var(--court-deep); }
 .tagc { font: 700 11px/1 var(--disp); letter-spacing: .12em; text-transform: uppercase; padding: 4px 6px; border: 1.5px solid currentColor; justify-self: start; box-sizing: border-box; min-width: 58px; text-align: center; }
 .tagc.home { color: var(--ball); } .tagc.onli { color: var(--onli); }
 .md .w { font: 600 17px/1 var(--disp); font-variant-numeric: tabular-nums; text-align: right; grid-column: 5; white-space: nowrap; }
-.md .p { font: 500 14px/1 var(--text); opacity: .8; min-width: 0; padding-left: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md .p { font: 500 14px/1 var(--text); opacity: .8; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .md.open { background: var(--court-deep); }
 .detail { background: var(--court-deep); border-bottom: 1px solid var(--board-line); padding: 6px 14px 12px 14px; }
 .detail table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 14px; }
@@ -308,11 +308,11 @@ a.back { display: inline-block; font: 600 13px/1 var(--disp); letter-spacing: .1
   .gatebox { padding: 18px 16px; }
   .gatebox .club { font-size: 28px; }
   .gatebox .in { width: 170px; }
-  .md { grid-template-columns: 84px 60px minmax(0, 1fr) auto; padding: 0 10px; gap: 6px; }
+  .md { grid-template-columns: 71px 58px minmax(0, 1fr) auto; padding: 0 10px; column-gap: 12px; }
   .md .w { grid-column: 4; font-size: 16px; }
   .md .d { font-size: 16px; }
-  .md .p { font-size: 12px; padding-left: 8px; }
-  a.md { grid-template-columns: 84px 60px minmax(0, 1fr) auto 14px; padding-right: 8px; }
+  .md .p { font-size: 12px; }
+  a.md { grid-template-columns: 71px 58px minmax(0, 1fr) auto 14px; padding-right: 8px; }
   .detail { padding: 4px 10px 10px; }
   .sgt { grid-template-columns: 14px auto minmax(0, 1fr); row-gap: 7px; padding: 11px 10px; }
   .sgt .st { font-size: 17px; }
