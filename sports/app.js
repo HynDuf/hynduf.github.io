@@ -361,7 +361,7 @@ function sv(tag, attrs, text) {
 }
 
 const ballmark = () => el("span", { class: "ballmark" });
-const tagChip = (tag) => el("span", { class: "tagc " + (tag === "home" ? "home" : "onli") }, tag === "home" ? "Home" : "Onli");
+const tagChip = (tag) => el("span", { class: "tagc " + (tag === "home" ? "home" : "onli") }, tag === "home" ? "Home" : "Online");
 const formNode = (marks, slots = marks.length) => el("div", { class: "form" }, [
   ...Array.from({ length: Math.max(0, slots - marks.length) }, () => el("b", { class: "E" }, "")),
   ...marks.map((m) => el("b", { class: m }, m)),
@@ -810,7 +810,8 @@ function detailNode(md) {
   const rows = detail(md, S.d), online = md.tag === "online";
   const head = el("tr", {}, el("th", {}, "Player"), online ? el("th", { class: "hcol" }, "Name") : null,
     el("th", {}, "Balls in"), el("th", {}, "Balls out"), el("th", {}, ballmark(), "PnL"));
-  return el("div", { class: "detail" }, auditNode(md.audit), el("table", {}, head, rows.map((r) => el("tr", {},
+  const links = (md.audit ?? []).filter((a) => !(online && a.kind === "entry"));
+  return el("div", { class: "detail" }, auditNode(links), el("table", {}, head, rows.map((r) => el("tr", {},
     el("td", {}, el("a", { href: "#player-" + r.person }, r.name)),
     online ? el("td", { class: "hcol" }, r.handle != null ? el("span", { class: "hn" }, r.handle) : "") : null,
     el("td", {}, num(r.in)), el("td", {}, num(r.out)), el("td", { class: tone(r.net) || null }, fmt(r.net))))));
@@ -818,31 +819,68 @@ function detailNode(md) {
 
 const AUDIT = { game: "Game", post: "Post", entry: "Entry" };
 
-async function copyLink(btn, url) {
+function shortUrl(url) {
+  try {
+    const u = new URL(url), host = u.hostname.replace(/^(www|secure)\./, ""), segs = u.pathname.split("/").filter(Boolean), last = segs.at(-1);
+    if (!last) return host;
+    if (/^\d+$/.test(last)) {
+      const tail = last.length > 12 ? "…" + last.slice(-8) : last;
+      return segs.length > 2 ? `${host}/${segs[0]}/…/${tail}` : `${host}/…/${tail}`;
+    }
+    return [host, ...segs.slice(0, -1), last.length > 8 ? last.slice(0, 5) + "…" : last].join("/");
+  } catch {
+    return String(url);
+  }
+}
+
+const ICON = { copy: "M11 9h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2zM5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1", done: "M5 12.5l4.5 4.5L19 7.5" };
+const icon = (k) => {
+  const svg = sv("svg", { viewBox: "0 0 24 24", "aria-hidden": "true" });
+  svg.append(sv("path", { d: ICON[k] }));
+  return svg;
+};
+
+function toast(head, url, select) {
+  let t = document.getElementById("toast");
+  if (!t) { t = el("div", { id: "toast", class: "toast", role: "status" }); document.body.append(t); }
+  const field = el("input", { class: "tu", readonly: true, value: url, "aria-label": "Link" });
+  t.replaceChildren(el("b", {}, head), select ? field : el("span", { class: "tu" }, url));
+  t.classList.add("on");
+  if (select) { field.focus(); field.select(); }
+  clearTimeout(t.hide);
+  t.hide = setTimeout(() => t.classList.remove("on"), select ? 8000 : 2600);
+}
+
+async function copyLink(pill, url) {
   let ok = false;
   try { await navigator.clipboard.writeText(url); ok = true; } catch { }
   if (!ok) {
-    const box = btn.parentNode.querySelector("input.au") ?? el("input", { class: "au", readonly: true, value: url, "aria-label": "Link" });
-    btn.after(box);
-    box.select();
+    const tmp = el("textarea", { class: "off", readonly: true });
+    tmp.value = url;
+    document.body.append(tmp);
+    tmp.select();
     try { ok = document.execCommand("copy"); } catch { }
+    tmp.remove();
   }
-  btn.textContent = ok ? "Copied" : "Selected";
-  btn.classList.toggle("done", ok);
-  clearTimeout(btn.flash);
-  btn.flash = setTimeout(() => { btn.textContent = "Copy"; btn.classList.remove("done"); }, 1400);
+  toast(ok ? "Copied" : "Select and copy", url, !ok);
+  if (!ok) return;
+  const btn = pill.querySelector(".cc");
+  pill.classList.add("done");
+  btn.replaceChildren(icon("done"));
+  clearTimeout(pill.flash);
+  pill.flash = setTimeout(() => { pill.classList.remove("done"); btn.replaceChildren(icon("copy")); }, 1500);
+}
+
+function pillNode(label, url) {
+  const pill = el("span", { class: "pill" }, el("a", { class: "cl", href: url, target: "_blank", rel: "noopener noreferrer", title: url },
+    el("i", {}, label), el("span", { class: "cu" }, shortUrl(url))));
+  pill.append(el("button", { type: "button", class: "cc", "aria-label": "Copy link", title: "Copy link", onclick: () => copyLink(pill, url) }, icon("copy")));
+  return pill;
 }
 
 function auditNode(links) {
   if (!links?.length) return null;
-  const count = {}, seen = {};
-  for (const a of links) count[a.kind] = (count[a.kind] || 0) + 1;
-  return el("div", { class: "aud" }, links.map((a) => {
-    seen[a.kind] = (seen[a.kind] || 0) + 1;
-    const name = (AUDIT[a.kind] ?? a.kind) + (count[a.kind] > 1 ? " " + seen[a.kind] : "");
-    return el("span", { class: "al" }, el("a", { class: "ab", href: a.url, target: "_blank", rel: "noopener noreferrer" }, name, " ↗"),
-      el("button", { type: "button", class: "ab cp", "aria-label": "Copy the " + name + " link", onclick: (e) => copyLink(e.currentTarget, a.url) }, "Copy"));
-  }));
+  return el("div", { class: "pills" }, links.map((a) => pillNode(AUDIT[a.kind] ?? a.kind, a.url)));
 }
 
 function dayRow(r, md) {
@@ -860,25 +898,30 @@ function dayRow(r, md) {
 }
 
 const groupKey = (g) => `${g.date}:${g.rows.at(-1).n}`;
-const netItem = (x) => el("span", { class: "nt" }, el("i", {}, x.name), el("b", { class: tone(x.net) || null }, fmt(x.net)));
+const edgeNode = (x) => el("span", { class: tone(x.net) || null }, x.name + " " + fmt(x.net));
+
+function settleNode(g, byN) {
+  const entries = [...new Set(g.rows.filter((r) => r.tag === "online").flatMap((r) => (byN.get(r.n).audit ?? []).filter((a) => a.kind === "entry").map((a) => a.url)))];
+  return el("div", { class: "sset" }, el("div", { class: "snets" }, g.nets.map((x) => el("div", { class: "sn" }, el("a", { href: "#player-" + x.person }, x.name),
+    el("span", { class: "w " + tone(x.net) }, pnlParts(x.net))))), entries.length ? el("div", { class: "pills" }, entries.map((u) => pillNode("Online entry", u))) : null);
+}
 
 function groupNode(g, byN) {
-  const key = groupKey(g), counts = [g.online && `${g.online} online`, g.home && `${g.home} home`].filter(Boolean).join(" · ");
-  const short = g.nets.length > 4 ? [...g.nets.slice(0, 2).map(netItem), el("span", { class: "nt gap" }, "…"), ...g.nets.slice(-2).map(netItem)] : g.nets.map(netItem);
-  const entries = [...new Set(g.rows.filter((r) => r.tag === "online").flatMap((r) => (byN.get(r.n).audit ?? []).filter((a) => a.kind === "entry").map((a) => a.url)))];
+  const key = groupKey(g), top = g.nets[0], low = g.nets.at(-1);
+  const edges = [top?.net > 0 ? edgeNode(top) : null, low?.net < 0 && low !== top ? edgeNode(low) : null].filter(Boolean);
   let open = S.gopen.has(key);
   const box = el("section", { class: "sg" + (open ? " open" : "") });
   const btn = el("button", { type: "button", class: "sgt", "aria-expanded": String(open) }, el("span", { class: "tw", "aria-hidden": "true" }, "›"),
-    el("span", { class: "st" }, g.date ? "Settled " + dayLabel(g.date) : "Not settled yet"), el("span", { class: "cn" }, counts),
-    el("span", { class: "nets short" }, short), el("span", { class: "nets all" }, g.nets.map(netItem)));
+    el("span", { class: "st" }, g.date ? "Settled " + dayLabel(g.date) : "Not settled yet"),
+    el("span", { class: "cn" }, `${g.rows.length} ${g.rows.length === 1 ? "day" : "days"}`),
+    el("span", { class: "edge" }, edges.flatMap((x, i) => (i ? [el("em", {}, " · "), x] : [x]))));
   btn.addEventListener("click", () => {
     open = !open;
     if (open) S.gopen.add(key); else S.gopen.delete(key);
     box.classList.toggle("open", open);
     btn.setAttribute("aria-expanded", String(open));
   });
-  box.append(el("div", { class: "sgh" }, btn, auditNode(entries.map((url) => ({ kind: "entry", url })))),
-    el("div", { class: "sb" }, g.rows.flatMap((r) => dayRow(r, byN.get(r.n)))));
+  box.append(btn, el("div", { class: "sbody" }, settleNode(g, byN), el("div", { class: "sb" }, g.rows.flatMap((r) => dayRow(r, byN.get(r.n))))));
   return box;
 }
 
