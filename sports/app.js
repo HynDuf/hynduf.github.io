@@ -476,29 +476,69 @@ function styleChart(d, pts) {
     svg.append(sv("line", { x1: x(v), x2: x(v), y1: T, y2: y(0), stroke: css("--board-line") }));
     txt(svg, x(v), y(0) + 16, v + "%", { "text-anchor": "middle", "fill-opacity": 0.7 });
   }
-  txt(svg, (L + W - R) / 2, H - 8, names[1]?.[1] ?? "", { "text-anchor": "middle", "font-weight": 600, "letter-spacing": "1.5" });
-  txt(svg, L + 6, T + 12, names[2]?.[1] ?? "", { "font-weight": 600, "letter-spacing": "1.5" });
-  const corner = { "fill-opacity": 0.45, "font-size": 11, "letter-spacing": "1.2" };
-  txt(svg, W - R - 6, T + 12, "LOOSE · AGGRESSIVE", Object.assign({ "text-anchor": "end" }, corner));
-  txt(svg, W - R - 6, y(0) - 8, "LOOSE · PASSIVE", Object.assign({ "text-anchor": "end" }, corner));
-  txt(svg, L + 44, T + 12, "TIGHT · AGGRESSIVE", corner);
-  txt(svg, L + 6, y(0) - 8, "TIGHT · PASSIVE", corner);
-  const boxes = pts.map((p) => [x(p.x) - 7, y(p.y) - 7, 14, 14]);
   const ctx = document.createElement("canvas").getContext("2d");
-  if (ctx) ctx.font = "600 13px Barlow, sans-serif";
+  const wide = (str, font, gap = 0) => {
+    if (ctx) ctx.font = font;
+    return Math.ceil((ctx ? ctx.measureText(str).width : str.length * 8) + gap * str.length) + 2;
+  };
+  const boxes = [];
+  const fixed = (bx, by, str, a, size, font, gap) => {
+    const w = wide(str, font, gap), anchor = a["text-anchor"];
+    txt(svg, bx, by, str, a);
+    boxes.push([anchor === "end" ? bx - w : anchor === "middle" ? bx - w / 2 : bx, by - size, w, size + 3]);
+  };
+  const title = { "font-weight": 600, "letter-spacing": "1.5" }, titleFont = "600 12px Barlow, sans-serif";
+  fixed((L + W - R) / 2, H - 8, names[1]?.[1] ?? "", Object.assign({ "text-anchor": "middle" }, title), 12, titleFont, 1.5);
+  fixed(L + 6, T + 12, names[2]?.[1] ?? "", title, 12, titleFont, 1.5);
+  const corner = { "fill-opacity": 0.45, "font-size": 11, "letter-spacing": "1.2" }, cornerFont = "11px Barlow, sans-serif";
+  const end = Object.assign({ "text-anchor": "end" }, corner);
+  fixed(W - R - 6, T + 12, "LOOSE · AGGRESSIVE", end, 11, cornerFont, 1.2);
+  fixed(W - R - 6, y(0) - 8, "LOOSE · PASSIVE", end, 11, cornerFont, 1.2);
+  fixed(L + 44, T + 12, "TIGHT · AGGRESSIVE", corner, 11, cornerFont, 1.2);
+  fixed(L + 6, y(0) - 8, "TIGHT · PASSIVE", corner, 11, cornerFont, 1.2);
+  boxes.push(...pts.map((p) => [x(p.x) - 7, y(p.y) - 7, 14, 14]));
+  const nameFont = "600 13px Barlow, sans-serif", nameAttrs = { "font-weight": 600, "font-size": 13 };
   const hit = (a, b) => a[0] < b[0] + b[2] + 2 && b[0] < a[0] + a[2] + 2 && a[1] < b[1] + b[3] + 1 && b[1] < a[1] + a[3] + 1;
-  const fits = (b) => b[0] >= L && b[0] + b[2] <= W - 2 && b[1] >= 0 && b[1] + b[3] <= y(0) + 3 && !boxes.some((o) => hit(b, o));
+  const inside = (b) => b[0] >= L && b[0] + b[2] <= W - 2 && b[1] >= 0 && b[1] + b[3] <= y(0) + 3;
+  const around = (cx, cy, w) => [[cx + 10, cy - 8], [cx - 10 - w, cy - 8], [cx - w / 2, cy - 23], [cx - w / 2, cy + 8]]
+    .map(([bx, by]) => [bx, by, w, 15]);
+  let tip = null, owner = null;
+  const hide = (e) => {
+    if (e && e.target === owner) return;
+    tip?.remove();
+    tip = owner = null;
+    document.removeEventListener("click", hide);
+  };
+  const show = (dot, name, cx, cy) => {
+    hide();
+    const w = wide(name, nameFont), cand = around(cx, cy, w), b = cand.find(inside) ?? cand[0];
+    const bx = Math.min(Math.max(b[0], 2), W - 2 - w);
+    tip = sv("g", { class: "tip" });
+    tip.append(sv("rect", { x: bx - 4, y: b[1] - 2, width: w + 8, height: b[3] + 4, fill: css("--board"), stroke: css("--board-line") }));
+    tip.append(sv("text", Object.assign({ x: bx, y: b[1] + 12, fill: css("--chalk"), "font-family": "Barlow, sans-serif" }, nameAttrs), name));
+    svg.append(tip);
+    owner = dot;
+    document.addEventListener("click", hide);
+  };
+  const unnamed = [];
   const spots = pts.map((p) => {
-    const cx = x(p.x), cy = y(p.y), w = Math.ceil(ctx ? ctx.measureText(p.name).width : p.name.length * 8) + 2;
-    const spot = [[cx + 10, cy - 8], [cx - 10 - w, cy - 8], [cx - w / 2, cy - 23], [cx - w / 2, cy + 8]]
-      .map(([bx, by]) => [bx, by, w, 15]).find(fits);
+    const cx = x(p.x), cy = y(p.y);
+    const spot = around(cx, cy, wide(p.name, nameFont)).find((b) => inside(b) && !boxes.some((o) => hit(b, o)));
     if (spot) boxes.push(spot);
     const dot = sv("circle", { cx, cy, r: 6, fill: css("--ball") });
-    if (!spot) dot.append(sv("title", {}, p.name));
+    if (!spot) {
+      unnamed.push({ name: p.name, cx, cy });
+      dot.append(sv("title", {}, p.name));
+      dot.setAttribute("class", "tap");
+      dot.addEventListener("click", () => {
+        const stack = unnamed.filter((o) => Math.hypot(o.cx - cx, o.cy - cy) < 12).map((o) => o.name);
+        show(dot, [p.name, ...stack.filter((n) => n !== p.name)].join(" · "), cx, cy);
+      });
+    }
     svg.append(dot);
     return spot;
   });
-  pts.forEach((p, i) => { if (spots[i]) txt(svg, spots[i][0], spots[i][1] + 12, p.name, { "font-weight": 600, "font-size": 13 }); });
+  pts.forEach((p, i) => { if (spots[i]) txt(svg, spots[i][0], spots[i][1] + 12, p.name, nameAttrs); });
   return svg;
 }
 

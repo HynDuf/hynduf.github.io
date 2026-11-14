@@ -138,6 +138,8 @@ button.md:hover { background: var(--court-deep); }
 .tile u { display: block; text-decoration: none; font-size: 12px; opacity: .7; margin-top: 4px; }
 .chart { background: var(--board); border: 1px solid var(--board-line); padding: 10px 6px 4px; }
 .chart svg { display: block; width: 100%; height: auto; }
+.chart .tap { cursor: pointer; stroke: transparent; stroke-width: 10px; }
+.chart .tip { pointer-events: none; }
 .back { display: inline-block; font: 600 13px/1 var(--disp); letter-spacing: .12em; text-transform: uppercase; opacity: .75; margin-bottom: 10px; }
 .hero { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-bottom: 16px; }
 .hero .title { margin: 0; line-height: 1; }
