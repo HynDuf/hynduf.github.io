@@ -92,6 +92,26 @@ export function detail(md, d) {
   }).sort((a, b) => b.net - a.net || byName(a.name, b.name));
 }
 
+export function historyGroups(d) {
+  const rows = matchdayRows(d, "all"), byN = new Map((d?.matchdays ?? []).map((m) => [m.n, m]));
+  const sets = Array.isArray(d?.settlements) ? d.settlements : [], at = new Map();
+  sets.forEach((s, i) => { for (const n of s.days ?? []) if (!at.has(n)) at.set(n, i); });
+  const make = (date, rs) => {
+    const tot = {};
+    for (const r of rs) for (const p of byN.get(r.n).players) tot[p.person] = (tot[p.person] || 0) + p.net;
+    for (const k in tot) tot[k] = r6(tot[k]);
+    const online = rs.filter((r) => r.tag === "online").length;
+    return { date, rows: rs, online, home: rs.length - online, nets: order(d, tot).map((person) => ({ person, name: nameOf(d, person), net: tot[person] })) };
+  };
+  const loose = rows.filter((r) => !at.has(r.n));
+  const out = loose.length ? [make(null, loose)] : [];
+  sets.forEach((s, i) => {
+    const rs = rows.filter((r) => at.get(r.n) === i);
+    if (rs.length) out.push(make(s.date, rs));
+  });
+  return out;
+}
+
 const markOf = (n) => (n > 0 ? "W" : n < 0 ? "L" : "D");
 
 export function form(d, person, count = 5, period = "all") {
@@ -308,7 +328,7 @@ const NS = "http://www.w3.org/2000/svg";
 const WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MO = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const KINDS = [["return", "Best return"], ["big", "Biggest rally"], ["smash", "Most smashes"], ["fake", "Best fake"]];
-const S = { d: null, view: "", period: "all", showAll: false, open: new Set(), mode: "candle", hl: null, stop: () => {} };
+const S = { d: null, view: "", period: "all", showAll: false, open: new Set(), gopen: null, mode: "candle", hl: null, stop: () => {} };
 
 const css = (name) => `var(${name})`;
 const dayLabel = (iso) => {
@@ -790,10 +810,76 @@ function detailNode(md) {
   const rows = detail(md, S.d), online = md.tag === "online";
   const head = el("tr", {}, el("th", {}, "Player"), online ? el("th", { class: "hcol" }, "Name") : null,
     el("th", {}, "Balls in"), el("th", {}, "Balls out"), el("th", {}, ballmark(), "PnL"));
-  return el("div", { class: "detail" }, el("table", {}, head, rows.map((r) => el("tr", {},
+  return el("div", { class: "detail" }, auditNode(md.audit), el("table", {}, head, rows.map((r) => el("tr", {},
     el("td", {}, el("a", { href: "#player-" + r.person }, r.name)),
     online ? el("td", { class: "hcol" }, r.handle != null ? el("span", { class: "hn" }, r.handle) : "") : null,
     el("td", {}, num(r.in)), el("td", {}, num(r.out)), el("td", { class: tone(r.net) || null }, fmt(r.net))))));
+}
+
+const AUDIT = { game: "Game", post: "Post", entry: "Entry" };
+
+async function copyLink(btn, url) {
+  let ok = false;
+  try { await navigator.clipboard.writeText(url); ok = true; } catch { }
+  if (!ok) {
+    const box = btn.parentNode.querySelector("input.au") ?? el("input", { class: "au", readonly: true, value: url, "aria-label": "Link" });
+    btn.after(box);
+    box.select();
+    try { ok = document.execCommand("copy"); } catch { }
+  }
+  btn.textContent = ok ? "Copied" : "Selected";
+  btn.classList.toggle("done", ok);
+  clearTimeout(btn.flash);
+  btn.flash = setTimeout(() => { btn.textContent = "Copy"; btn.classList.remove("done"); }, 1400);
+}
+
+function auditNode(links) {
+  if (!links?.length) return null;
+  const count = {}, seen = {};
+  for (const a of links) count[a.kind] = (count[a.kind] || 0) + 1;
+  return el("div", { class: "aud" }, links.map((a) => {
+    seen[a.kind] = (seen[a.kind] || 0) + 1;
+    const name = (AUDIT[a.kind] ?? a.kind) + (count[a.kind] > 1 ? " " + seen[a.kind] : "");
+    return el("span", { class: "al" }, el("a", { class: "ab", href: a.url, target: "_blank", rel: "noopener noreferrer" }, name, " ↗"),
+      el("button", { type: "button", class: "ab cp", "aria-label": "Copy the " + name + " link", onclick: (e) => copyLink(e.currentTarget, a.url) }, "Copy"));
+  }));
+}
+
+function dayRow(r, md) {
+  let open = S.open.has(r.n), box = open ? detailNode(md) : null;
+  const row = el("button", { type: "button", class: "md" + (open ? " open" : ""), "aria-expanded": String(open), "data-n": r.n },
+    el("span", { class: "d" }, dayLabel(r.date)), tagChip(r.tag), el("span", { class: "p" }, `${r.players} players`),
+    el("span", { class: "w " + tone(r.topNet) }, `${r.topName} `, pnlParts(r.topNet)));
+  row.addEventListener("click", () => {
+    open = !open;
+    row.classList.toggle("open", open);
+    row.setAttribute("aria-expanded", String(open));
+    if (open) { S.open.add(r.n); box = detailNode(md); row.after(box); } else { S.open.delete(r.n); box?.remove(); box = null; }
+  });
+  return box ? [row, box] : [row];
+}
+
+const groupKey = (g) => `${g.date}:${g.rows.at(-1).n}`;
+const netItem = (x) => el("span", { class: "nt" }, el("i", {}, x.name), el("b", { class: tone(x.net) || null }, fmt(x.net)));
+
+function groupNode(g, byN) {
+  const key = groupKey(g), counts = [g.online && `${g.online} online`, g.home && `${g.home} home`].filter(Boolean).join(" · ");
+  const short = g.nets.length > 4 ? [...g.nets.slice(0, 2).map(netItem), el("span", { class: "nt gap" }, "…"), ...g.nets.slice(-2).map(netItem)] : g.nets.map(netItem);
+  const entries = [...new Set(g.rows.filter((r) => r.tag === "online").flatMap((r) => (byN.get(r.n).audit ?? []).filter((a) => a.kind === "entry").map((a) => a.url)))];
+  let open = S.gopen.has(key);
+  const box = el("section", { class: "sg" + (open ? " open" : "") });
+  const btn = el("button", { type: "button", class: "sgt", "aria-expanded": String(open) }, el("span", { class: "tw", "aria-hidden": "true" }, "›"),
+    el("span", { class: "st" }, g.date ? "Settled " + dayLabel(g.date) : "Not settled yet"), el("span", { class: "cn" }, counts),
+    el("span", { class: "nets short" }, short), el("span", { class: "nets all" }, g.nets.map(netItem)));
+  btn.addEventListener("click", () => {
+    open = !open;
+    if (open) S.gopen.add(key); else S.gopen.delete(key);
+    box.classList.toggle("open", open);
+    btn.setAttribute("aria-expanded", String(open));
+  });
+  box.append(el("div", { class: "sgh" }, btn, auditNode(entries.map((url) => ({ kind: "entry", url })))),
+    el("div", { class: "sb" }, g.rows.flatMap((r) => dayRow(r, byN.get(r.n)))));
+  return box;
 }
 
 function historyView(focusN) {
@@ -801,23 +887,12 @@ function historyView(focusN) {
   if (focusN != null) S.open.add(focusN);
   const out = [el("div", { class: "kicker" }, "Newest first"), el("h1", { class: "title" }, "History")];
   if (!rows.length) return out.concat(el("p", { class: "empty" }, message("empty")));
-  const list = el("div", { class: "sb" });
-  for (const r of rows) {
-    const md = byN.get(r.n);
-    let open = S.open.has(r.n), box = open ? detailNode(md) : null;
-    const row = el("button", { type: "button", class: "md" + (open ? " open" : ""), "aria-expanded": String(open), "data-n": r.n },
-      el("span", { class: "d" }, dayLabel(r.date)), tagChip(r.tag), el("span", { class: "p" }, `${r.players} players`),
-      el("span", { class: "w " + tone(r.topNet) }, `${r.topName} `, pnlParts(r.topNet)));
-    row.addEventListener("click", () => {
-      open = !open;
-      row.classList.toggle("open", open);
-      row.setAttribute("aria-expanded", String(open));
-      if (open) { S.open.add(r.n); box = detailNode(md); row.after(box); } else { S.open.delete(r.n); box?.remove(); box = null; }
-    });
-    list.append(row);
-    if (box) list.append(box);
-  }
-  return out.concat(list);
+  if (!Array.isArray(S.d.settlements)) return out.concat(el("div", { class: "sb" }, rows.flatMap((r) => dayRow(r, byN.get(r.n)))));
+  const groups = historyGroups(S.d);
+  S.gopen ??= new Set([groups.find((g) => g.date === null), groups.find((g) => g.date !== null)].filter(Boolean).map(groupKey));
+  const home = groups.find((g) => g.rows.some((r) => r.n === focusN));
+  if (home) S.gopen.add(groupKey(home));
+  return out.concat(groups.map((g) => groupNode(g, byN)));
 }
 
 function playerView(person) {
@@ -1007,6 +1082,7 @@ function start(d) {
   if (isDay(d.updated)) u.append("Updated ", el("b", {}, dayLabel(d.updated).slice(0, 3)), " " + shortLabel(d.updated));
   document.getElementById("gate").remove();
   document.getElementById("app").hidden = false;
+  if (S.view.startsWith("history-")) document.querySelector(`.md[data-n="${S.view.slice(8)}"]`)?.scrollIntoView({ block: "start" });
   themeMenu();
   addEventListener("hashchange", draw);
   matchMedia("(max-width: 600px)").addEventListener("change", draw);
