@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>IAllInU Club</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%23bfe21c'/%3E%3Cg fill='none' stroke='%23fbfff0' stroke-width='2.3'%3E%3Cpath d='M2 8.5C8.5 9.5 14.5 16.5 13.5 30'/%3E%3Cpath d='M30 23.5C23.5 22.5 17.5 15.5 18.5 2'/%3E%3C/g%3E%3C/svg%3E">
+<script>
+(function () {
+  var r = document.documentElement, c = null, m = null;
+  try { c = localStorage.getItem("court"); m = localStorage.getItem("mode"); } catch (e) {}
+  r.dataset.court = c === "clay" || c === "grass" ? c : "hard";
+  r.dataset.mode = m === "light" || m === "dark" ? m
+    : (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+})();
+</script>
+<link rel="preload" href="fonts/barlow-condensed-700-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<main class="gate-page" id="gate">
+  <div class="gate">
+    <form class="gatebox" id="gate-form">
+      <div class="club"><span class="ballmark"></span>IAllInU Club</div>
+      <small>Members only</small>
+      <div class="field">
+        <input type="password" class="in" id="pw" aria-label="Password" autocomplete="current-password" autofocus>
+        <button class="go" id="go" type="submit">Enter</button>
+      </div>
+      <div class="err" id="err" role="alert"></div>
+    </form>
+  </div>
+</main>
+<div id="app" hidden>
+  <header class="wrap top">
+    <a class="club" href="#ladder"><span class="ballmark"></span><span>IAllInU<span class="cw"> Club</span></span></a>
+    <span class="upd" id="upd"></span>
+    <nav id="nav">
+      <a href="#ladder" data-v="ladder">Ladder</a>
+      <a href="#history" data-v="history">History</a>
+      <a href="#highlights" data-v="highlights">Highlights</a>
+    </nav>
+    <span class="theme">
+      <button class="tbtn" id="tbtn" type="button" aria-label="Theme" aria-haspopup="true" aria-expanded="false">
+        <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 2a8 8 0 0 1 0 16z" fill="currentColor"/></svg>
+      </button>
+      <div class="tpop" id="tpop" hidden>
+        <b>Court</b>
+        <div class="opts">
+          <button type="button" data-k="court" data-v="hard"><i style="background:#1d4f91"></i>Hard</button>
+          <button type="button" data-k="court" data-v="clay"><i style="background:#b5562c"></i>Clay</button>
+          <button type="button" data-k="court" data-v="grass"><i style="background:#2f7a3d"></i>Grass</button>
+        </div>
+        <b>Mode</b>
+        <div class="opts">
+          <button type="button" data-k="mode" data-v="dark">Dark</button>
+          <button type="button" data-k="mode" data-v="light">Light</button>
+        </div>
+      </div>
+    </span>
+  </header>
+  <main class="wrap body" id="view"></main>
+</div>
+</body>
+</html>

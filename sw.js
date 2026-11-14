@@ -164,6 +164,10 @@ var fetchHelper = {
  *  void respondWith(Promise<Response> r);
  */
 self.addEventListener('fetch', event => {
+  const sportsUrl = new URL(event.request.url)
+  if (sportsUrl.origin === self.location.origin &&
+      (sportsUrl.pathname === '/sports' || sportsUrl.pathname.startsWith('/sports/'))) return;
+
   // logs for debugging
   //console.log(`fetch ${event.request.url}`)
   //console.log(` - type: ${event.request.type}; destination: ${event.request.destination}`)
