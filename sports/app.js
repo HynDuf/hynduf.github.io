@@ -851,7 +851,7 @@ function toast(head, url, select) {
   t.hide = setTimeout(() => t.classList.remove("on"), select ? 8000 : 2600);
 }
 
-async function copyLink(pill, url) {
+async function copyLink(pill, url, shown = url) {
   let ok = false;
   try { await navigator.clipboard.writeText(url); ok = true; } catch { }
   if (!ok) {
@@ -862,7 +862,7 @@ async function copyLink(pill, url) {
     try { ok = document.execCommand("copy"); } catch { }
     tmp.remove();
   }
-  toast(ok ? "Copied" : "Select and copy", url, !ok);
+  toast(ok ? "Copied" : "Select and copy", ok ? shown : url, !ok);
   if (!ok) return;
   const btn = pill.querySelector(".cc");
   pill.classList.add("done");
@@ -871,16 +871,20 @@ async function copyLink(pill, url) {
   pill.flash = setTimeout(() => { pill.classList.remove("done"); btn.replaceChildren(icon("copy")); }, 1500);
 }
 
-function pillNode(label, url) {
-  const pill = el("span", { class: "pill" }, el("a", { class: "cl", href: url, target: "_blank", rel: "noopener noreferrer", title: url },
-    el("i", {}, label), el("span", { class: "cu" }, shortUrl(url))));
-  pill.append(el("button", { type: "button", class: "cc", "aria-label": "Copy link", title: "Copy link", onclick: () => copyLink(pill, url) }, icon("copy")));
+// A game link's host names the real activity, so it never shows on the page: only the end of its code.
+const gameCode = (url) => { try { return "…" + new URL(url).pathname.split("/").filter(Boolean).at(-1).slice(-6); } catch { return "…"; } };
+
+function pillNode(label, url, kind) {
+  const shown = kind === "game" ? gameCode(url) : shortUrl(url);
+  const pill = el("span", { class: "pill" }, el("a", { class: "cl", href: url, target: "_blank", rel: "noopener noreferrer", ...(kind === "game" ? {} : { title: url }) },
+    el("i", {}, label), el("span", { class: "cu" }, shown)));
+  pill.append(el("button", { type: "button", class: "cc", "aria-label": "Copy link", title: "Copy link", onclick: () => copyLink(pill, url, kind === "game" ? `${label} ${shown}` : url) }, icon("copy")));
   return pill;
 }
 
 function auditNode(links) {
   if (!links?.length) return null;
-  return el("div", { class: "pills" }, links.map((a) => pillNode(AUDIT[a.kind] ?? a.kind, a.url)));
+  return el("div", { class: "pills" }, links.map((a) => pillNode(AUDIT[a.kind] ?? a.kind, a.url, a.kind)));
 }
 
 function dayRow(r, md) {
