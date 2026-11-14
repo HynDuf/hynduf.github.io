@@ -300,7 +300,7 @@ export function choose(pool, rnd, last) {
 
 export function route(hash) {
   const s = String(hash ?? "").replace(/^#/, "");
-  if (s === "ladder" || s === "history" || s === "highlights" || /^player-\d+$/.test(s)) return s;
+  if (s === "ladder" || s === "history" || s === "highlights" || /^(player|history)-\d+$/.test(s)) return s;
   return "ladder";
 }
 
@@ -350,6 +350,13 @@ const pnlParts = (x) => {
   const [whole, part] = fmt(x).split(".");
   return [whole, el("small", { class: "dp" }, part ? "." + part : "")];
 };
+const press = (e) => {
+  const a = e.target.closest?.("a.link");
+  if (!a || e.pointerType === "mouse") return;
+  a.classList.add("press");
+  setTimeout(() => a.classList.remove("press"), 220);
+};
+const chev = () => el("span", { class: "chev", "aria-hidden": "true" }, "›");
 const who = (d, p) => el("a", { class: "who", href: "#player-" + p }, nameOf(d, p));
 
 function scale(min, max, ticks = 5) {
@@ -561,7 +568,7 @@ function activityChart(rows, days) {
   }
   const X = (i) => L + slot * i + slot / 2;
   const bars = rows.map((r, i) => {
-    const cx = X(i), bar = sv("rect", { class: "abar", x: cx - bw / 2, y: y(r.total), width: bw, height: y(0) - y(r.total),
+    const cx = X(i), bar = sv("rect", { class: "mark", x: cx - bw / 2, y: y(r.total), width: bw, height: y(0) - y(r.total),
       fill: css(r.tag === "home" ? "--ball" : "--onli") });
     svg.append(bar);
     if (n <= (narrow() ? 6 : 12)) txt(svg, cx, y(r.total) - 6, num(r.total), { "text-anchor": "middle", "font-weight": 600 });
@@ -663,7 +670,7 @@ function styleChart(d, pts) {
   return svg;
 }
 
-function playerChart(cs, mode) {
+function playerChart(cs, mode, logged) {
   const W = chartW(716), H = 260, L = 56, R = 16, T = 22, B = 30, n = cs.length;
   const all = cs.flatMap((c) => [c.high, c.low, c.close - c.open]).concat(0);
   const { lo, hi, step } = scale(Math.min(...all), Math.max(...all), 4);
@@ -674,23 +681,35 @@ function playerChart(cs, mode) {
     txt(svg, L - 8, y(v) + 4, fmt(v), { "text-anchor": "end", "fill-opacity": 0.7 });
   }
   cs.forEach((c, i) => { if (show(i)) txt(svg, X(i), H - 9, shortLabel(c.date), { "text-anchor": "middle", "fill-opacity": 0.7 }); });
-  if (mode === "line") {
+  const marks = [], line = mode === "line";
+  if (line) {
     cs.forEach((c, i) => {
       const dv = c.close - c.open, top = Math.min(y(dv), y(0)), h = Math.max(2, Math.abs(y(dv) - y(0)));
-      svg.append(sv("rect", { x: X(i) - slot / 2 + Math.min(8, slot / 6), y: top, width: Math.max(2, slot - 2 * Math.min(8, slot / 6)),
+      marks.push(sv("rect", { class: "mark dbar", x: X(i) - slot / 2 + Math.min(8, slot / 6), y: top, width: Math.max(2, slot - 2 * Math.min(8, slot / 6)),
         height: h, fill: css(dv >= 0 ? "--up" : "--down"), "fill-opacity": 0.35 }));
+      svg.append(marks[i]);
       if (vals) txt(svg, X(i), dv >= 0 ? top - 5 : top + h + 13, fmt(dv), { "text-anchor": "middle", "font-weight": 600, "font-size": 11, "fill-opacity": 0.85 });
     });
     svg.append(sv("polyline", { points: cs.map((c, i) => `${X(i)},${y(c.close)}`).join(" "), fill: "none", stroke: css("--ball"), "stroke-width": 3, "stroke-linejoin": "round" }));
     svg.append(sv("circle", { cx: X(n - 1), cy: y(cs[n - 1].close), r: 5, fill: css("--ball") }));
-    return svg;
+  } else {
+    cs.forEach((c, i) => {
+      const col = css(c.close >= c.open ? "--up" : "--down"), top = Math.min(y(c.close), y(c.open));
+      const h = Math.max(2, Math.abs(y(c.close) - y(c.open))), bw = Math.max(2, slot - 4), g = sv("g", { class: "mark" });
+      g.append(sv("line", { x1: X(i), x2: X(i), y1: y(c.high), y2: y(c.low), stroke: col, "stroke-width": 2 }));
+      g.append(sv("rect", { x: X(i) - bw / 2, y: top, width: bw, height: h, fill: col }));
+      svg.append(g);
+      marks.push(g);
+      if (vals) txt(svg, X(i), y(c.high) - 6, fmt(c.close - c.open), { "text-anchor": "middle", "font-weight": 600 });
+    });
   }
-  cs.forEach((c, i) => {
-    const col = css(c.close >= c.open ? "--up" : "--down"), top = Math.min(y(c.close), y(c.open));
-    const h = Math.max(2, Math.abs(y(c.close) - y(c.open))), bw = Math.max(2, slot - 4);
-    svg.append(sv("line", { x1: X(i), x2: X(i), y1: y(c.high), y2: y(c.low), stroke: col, "stroke-width": 2 }));
-    svg.append(sv("rect", { x: X(i) - bw / 2, y: top, width: bw, height: h, fill: col }));
-    if (vals) txt(svg, X(i), y(c.high) - 6, fmt(c.close - c.open), { "text-anchor": "middle", "font-weight": 600 });
+  hoverLayer(svg, cs.map((c) => c.date), X, L, T, (i, { gx, layer }) => {
+    const c = cs[i], dv = r6(c.close - c.open);
+    layer.append(sv("line", { x1: gx, x2: gx, y1: T, y2: H - B, stroke: css("--chalk"), "stroke-opacity": 0.55, "stroke-dasharray": "3 3" }));
+    if (line) layer.append(sv("circle", { cx: gx, cy: y(c.close), r: 5.5, fill: css("--ball"), stroke: css("--board"), "stroke-width": 1.5 }));
+    return { node: marks[i], nodes: [el("div", { class: "facts" }, tagChip(c.tag), el("span", { class: "res " + tone(dv) }, pnlParts(dv)),
+      el("span", { class: "sub" }, `${fmt(c.open)} → ${fmt(c.close)}`),
+      logged?.[i] ? el("span", { class: "sub" }, `high ${fmt(c.high)} / low ${fmt(c.low)}`) : null)] };
   });
   return svg;
 }
@@ -745,16 +764,10 @@ function ladderView() {
     el("div", { class: "num wide" }, "Matches"), el("div", { class: "num wide" }, "Win"),
     el("div", { class: "pnlh" }, el("span", { class: "pnl" }, ballmark(), "PnL")), el("div", {}, ""));
   const shown = S.showAll ? rows : rows.slice(0, 10);
-  const press = (e) => {
-    const a = e.target.closest?.("a.row");
-    if (!a || e.pointerType === "mouse") return;
-    a.classList.add("press");
-    setTimeout(() => a.classList.remove("press"), 220);
-  };
   out.push(el("div", { class: "sb", onpointerdown: press }, head, shown.map((r) => el("a", { class: "row link" + (r.rank === 1 ? " r1" : ""), href: "#player-" + r.person },
     el("div", { class: "rk" }, r.rank), el("div", { class: "nm" }, r.name), formNode(form(d, r.person, 5, period), 5),
     el("div", { class: "num wide" }, r.matches), el("div", { class: "num wide" }, Math.round(100 * r.wins / r.matches) + "%"),
-    el("div", { class: "tot " + tone(r.total) }, pnlParts(r.total)), el("div", { class: "chev", "aria-hidden": "true" }, "›")))));
+    el("div", { class: "tot " + tone(r.total) }, pnlParts(r.total)), chev()))));
   if (rows.length > 10 && !S.showAll) {
     out.push(el("div", { class: "pager" }, el("button", { type: "button", onclick: () => { S.showAll = true; draw(); } }, `Show all ${rows.length} ▾`),
       el("em", {}, "Top 10 shown")));
@@ -783,15 +796,16 @@ function detailNode(md) {
     el("td", {}, num(r.in)), el("td", {}, num(r.out)), el("td", { class: tone(r.net) || null }, fmt(r.net))))));
 }
 
-function historyView() {
+function historyView(focusN) {
   const rows = matchdayRows(S.d, "all"), byN = new Map(S.d.matchdays.map((m) => [m.n, m]));
+  if (focusN != null) S.open.add(focusN);
   const out = [el("div", { class: "kicker" }, "Newest first"), el("h1", { class: "title" }, "History")];
   if (!rows.length) return out.concat(el("p", { class: "empty" }, message("empty")));
   const list = el("div", { class: "sb" });
   for (const r of rows) {
     const md = byN.get(r.n);
     let open = S.open.has(r.n), box = open ? detailNode(md) : null;
-    const row = el("button", { type: "button", class: "md" + (open ? " open" : ""), "aria-expanded": String(open) },
+    const row = el("button", { type: "button", class: "md" + (open ? " open" : ""), "aria-expanded": String(open), "data-n": r.n },
       el("span", { class: "d" }, dayLabel(r.date)), tagChip(r.tag), el("span", { class: "p" }, `${r.players} players`),
       el("span", { class: "w " + tone(r.topNet) }, `${r.topName} `, pnlParts(r.topNet)));
     row.addEventListener("click", () => {
@@ -810,7 +824,8 @@ function playerView(person) {
   const d = S.d, row = ladder(d, "all").find((r) => r.person === person), st = stats(d, person), cs = candles(d, person);
   const mine = d.matchdays.filter((m) => m.players.some((p) => p.person === person));
   const online = mine.filter((m) => m.tag === "online").length, won = Math.round(st.winRate * st.played / 100);
-  const chartBox = el("div", { class: "chart" }, playerChart(cs, S.mode));
+  const logged = mine.map((m) => !!m.players.find((p) => p.person === person)?.adv);
+  const chartBox = el("div", { class: "chart" }, playerChart(cs, S.mode, logged));
   const sw = el("div", { class: "period", role: "group" }, [["candle", "Candles"], ["line", "Line"]].map(([k, t]) =>
     el("button", { type: "button", class: k === S.mode ? "on" : null, "data-m": k }, t)));
   sw.addEventListener("click", (e) => {
@@ -818,13 +833,13 @@ function playerView(person) {
     if (!b) return;
     S.mode = b.dataset.m;
     for (const n of sw.children) n.classList.toggle("on", n === b);
-    chartBox.replaceChildren(playerChart(cs, S.mode));
+    chartBox.replaceChildren(playerChart(cs, S.mode, logged));
   });
   const rowsNode = mine.slice().reverse().map((m) => {
     const p = m.players.find((q) => q.person === person);
-    return el("div", { class: "md" }, el("span", { class: "d" }, dayLabel(m.date)), tagChip(m.tag),
+    return el("a", { class: "md link", href: "#history-" + m.n }, el("span", { class: "d" }, dayLabel(m.date)), tagChip(m.tag),
       el("span", { class: "p" }, p.handle != null ? el("span", { class: "hn" }, p.handle) : null, p.device != null ? el("span", { class: "dev" }, p.device) : null),
-      el("span", { class: "w " + tone(p.net) }, pnlParts(p.net)));
+      el("span", { class: "w " + tone(p.net) }, pnlParts(p.net)), chev());
   });
   return [
     el("a", { class: "back", href: "#ladder" }, `‹ Ladder · rank ${row.rank}`),
@@ -838,7 +853,7 @@ function playerView(person) {
     el("div", { class: "headrow mini" }, el("div", { class: "kicker" }, "PnL"), sw),
     chartBox,
     el("div", { class: "kicker", style: "margin-top:16px" }, "Match days"),
-    el("div", { class: "sb" }, rowsNode),
+    el("div", { class: "sb", onpointerdown: press }, rowsNode),
   ];
 }
 
@@ -951,17 +966,20 @@ function draw() {
   let v = route(location.hash);
   const person = v.startsWith("player-") ? Number(v.slice(7)) : null;
   if (person != null && !ladder(S.d, "all").some((r) => r.person === person)) v = "ladder";
+  let focusN = v.startsWith("history-") ? Number(v.slice(8)) : null;
+  if (focusN != null && !S.d.matchdays.some((m) => m.n === focusN)) { v = "history"; focusN = null; }
   const changed = v !== S.view;
   if (changed && v === "highlights") S.hl = null;
   S.stop();
   S.stop = () => {};
   S.view = v;
-  const tab = v.startsWith("player-") ? "ladder" : v;
+  const tab = v.startsWith("player-") ? "ladder" : v.startsWith("history") ? "history" : v;
   for (const a of document.querySelectorAll("#nav a")) a.classList.toggle("on", a.dataset.v === tab);
   const view = document.getElementById("view");
-  const nodes = v === "history" ? historyView() : v === "highlights" ? highlightsView() : v.startsWith("player-") ? playerView(person) : ladderView();
+  const nodes = tab === "history" ? historyView(focusN) : v === "highlights" ? highlightsView() : v.startsWith("player-") ? playerView(person) : ladderView();
   view.replaceChildren(...nodes.filter(Boolean));
   if (changed) window.scrollTo(0, 0);
+  if (changed && focusN != null) view.querySelector(`.md[data-n="${focusN}"]`)?.scrollIntoView({ block: "start" });
 }
 
 function themeMenu() {
