@@ -160,6 +160,10 @@ export function records(d, period = "all") {
       if (r.l) loseC.push({ person: k, value: r.l, date: m.date, from: r.lFrom });
       cnt[k] = (cnt[k] || 0) + 1;
       matchC.push({ person: k, value: cnt[k], date: m.date });
+      const bk = p.back;
+      if (bk && Number.isFinite(bk.low) && Number.isFinite(bk.end) && r6(bk.end - bk.low) > 0) {
+        backC.push({ person: k, value: r6(bk.end - bk.low), date: m.date, low: bk.low, end: bk.end });
+      }
     }
     busyC.push({ value: m.players.length, date: m.date, total: r6(inSum), n: m.n });
     const t = topOf(d, m);
@@ -167,19 +171,14 @@ export function records(d, period = "all") {
   });
   for (const k in vals) {
     const person = Number(k);
-    let low = null, peak = null, last = null;
+    let peak = null;
     vals[k].forEach((v, i) => {
       if (!played[k].has(i)) return;
       const date = days[i].date;
-      last = { v, date };
-      if (!low || v <= low.v) low = { v, date };
       if (!peak || v > peak.v) peak = { v, date };
       else if (v < peak.v) downC.push({ person, value: r6(v - peak.v), date, from: peak.date, peak: peak.v, low: v });
       peakC.push({ person, value: v, date });
     });
-    if (last && r6(last.v - low.v) > 0) {
-      backC.push({ person, value: r6(last.v - low.v), date: last.date, from: low.date, low: low.v, last: last.v });
-    }
   }
   const up = (c) => c.value, dn = (c) => -c.value;
   return {
@@ -212,7 +211,7 @@ export function advanced(d, period = "all") {
 
 export function stylePoints(d, period = "all") {
   const [kh, kv, kp] = advKeys(d);
-  return advanced(d, period).filter((r) => r[kh] >= 50).map((r) => ({ person: r.person, name: r.name, x: r[kv], y: r[kp] }));
+  return advanced(d, period).filter((r) => r[kh] >= 50).map((r) => ({ person: r.person, name: r.name, x: r[kv], y: r[kp], w: r[kh] }));
 }
 
 export function rankOverTime(d, period = "all") {
@@ -343,7 +342,14 @@ function sv(tag, attrs, text) {
 
 const ballmark = () => el("span", { class: "ballmark" });
 const tagChip = (tag) => el("span", { class: "tagc " + (tag === "home" ? "home" : "onli") }, tag === "home" ? "Home" : "Onli");
-const formNode = (marks) => el("div", { class: "form" }, marks.map((m) => el("b", { class: m }, m)));
+const formNode = (marks, slots = marks.length) => el("div", { class: "form" }, [
+  ...Array.from({ length: Math.max(0, slots - marks.length) }, () => el("b", { class: "E" }, "")),
+  ...marks.map((m) => el("b", { class: m }, m)),
+]);
+const pnlParts = (x) => {
+  const [whole, part] = fmt(x).split(".");
+  return [whole, el("small", { class: "dp" }, part ? "." + part : "")];
+};
 const who = (d, p) => el("a", { class: "who", href: "#player-" + p }, nameOf(d, p));
 
 function scale(min, max, ticks = 5) {
@@ -393,8 +399,92 @@ function lineStyle(rank, count) {
   return [css("--chalk"), 0.5];
 }
 
+function segGap(px, py, [ax, ay], [bx, by]) {
+  const dx = bx - ax, dy = by - ay, len = dx * dx + dy * dy;
+  const t = len ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len)) : 0;
+  return Math.hypot(px - ax - t * dx, py - ay - t * dy);
+}
+
+function gapTo(pts, px, py) {
+  const p = pts.filter(Boolean);
+  let g = p.length ? Math.hypot(px - p[0][0], py - p[0][1]) : Infinity;
+  for (let j = 1; j < p.length; j++) g = Math.min(g, segGap(px, py, p[j - 1], p[j]));
+  return g;
+}
+
+function hoverLayer(svg, dates, x, left, top, paint) {
+  const n = dates.length, layer = sv("g", { class: "hov" }), peek = el("div", { class: "peek", hidden: true });
+  let hot = null, touch = false;
+  const focus = (node) => {
+    hot?.classList.remove("hot");
+    hot = node;
+    node?.classList.add("hot");
+    svg.classList.toggle("focus", !!node);
+  };
+  const hide = (e) => {
+    if (e && svg.parentNode?.contains(e.target)) return;
+    focus(null);
+    layer.remove();
+    peek.hidden = true;
+    touch = false;
+    document.removeEventListener("pointerdown", hide);
+  };
+  const show = (e) => {
+    const r = svg.getBoundingClientRect(), box = svg.parentNode;
+    if (!r.width || !box || !n) return;
+    const k = svg.viewBox.baseVal.width / r.width, sx = (e.clientX - r.left) * k, sy = (e.clientY - r.top) * k;
+    let i = 0;
+    for (let j = 1; j < n; j++) if (Math.abs(x(j) - sx) < Math.abs(x(i) - sx)) i = j;
+    layer.replaceChildren();
+    const out = paint(i, { sx, sy, k, gx: x(i), layer });
+    focus(out.node ?? null);
+    svg.append(layer);
+    peek.replaceChildren(el("b", {}, shortLabel(dates[i])), ...out.nodes);
+    if (!peek.isConnected) box.append(peek);
+    peek.hidden = false;
+    const br = box.getBoundingClientRect(), ox = r.left - br.left - box.clientLeft, oy = r.top - br.top - box.clientTop;
+    const cw = box.clientWidth, ch = box.clientHeight, lx = ox + x(i) / k;
+    peek.classList.remove("two");
+    if (peek.offsetHeight > ch - 8) peek.classList.add("two");
+    const w = peek.offsetWidth, h = peek.offsetHeight;
+    let px = lx + 12;
+    if (px + w > cw - 4) px = lx - 12 - w;
+    peek.style.left = Math.max(ox + left / k, Math.min(px, cw - 4 - w)) + "px";
+    peek.style.top = Math.max(4, Math.min(oy + top / k, ch - 4 - h)) + "px";
+  };
+  svg.classList.add("live");
+  svg.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse" || touch) show(e); });
+  svg.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "mouse") return;
+    show(e);
+    if (!touch) document.addEventListener("pointerdown", hide);
+    touch = true;
+  });
+  svg.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") hide(); });
+}
+
+const linePaint = (lines, top, bottom, row) => (i, { sx, sy, k, gx, layer }) => {
+  let best = null, gap = 8 * k;
+  for (const ln of lines) {
+    const g = gapTo(ln.pts, sx, sy);
+    if (g <= gap) { best = ln; gap = g; }
+  }
+  layer.append(sv("line", { x1: gx, x2: gx, y1: top, y2: bottom, stroke: css("--chalk"), "stroke-opacity": 0.55, "stroke-dasharray": "3 3" }));
+  const list = [];
+  for (const ln of lines) {
+    const p = ln.pts[i];
+    if (!p) continue;
+    layer.append(sv("circle", { cx: p[0], cy: p[1], r: ln === best ? 5.5 : 3.5, fill: ln.col, "fill-opacity": ln === best ? 1 : Math.max(ln.op, 0.6), stroke: css("--board"), "stroke-width": 1.5 }));
+    list.push({ ln, ...row(ln.person, i) });
+  }
+  list.sort((a, b) => a.key - b.key || byName(a.ln.name, b.ln.name));
+  return { node: best?.g, nodes: [el("div", { class: "rows" }, list.map((o) => el("div", { class: "pr" + (o.ln === best ? " hot" : "") },
+    el("i", { style: `background:${o.ln.col};opacity:${o.ln.op}` }), el("span", {}, o.ln.name),
+    el("em", { class: o.cls || null }, o.value), el("small", { class: o.dcls || null }, o.change ?? ""))))] };
+};
+
 function raceChart(d, period, rows) {
-  const { days, vals } = running(d, period), n = days.length;
+  const { days, vals, played } = running(d, period), n = days.length;
   const W = chartW(700), L = 56, R = 130, T = 14, B = 30, H = Math.max(320, rows.length * 17 + T + B + 10);
   const all = [0, ...Object.values(vals).flat().filter((v) => v != null)];
   const { lo, hi, step } = scale(Math.min(...all), Math.max(...all));
@@ -410,16 +500,22 @@ function raceChart(d, period, rows) {
   const drawn = rows.slice().reverse();
   const ends = drawn.map((r) => y(vals[r.person][n - 1]) + 5);
   spread(ends, T + 5, H - B, 17);
-  drawn.forEach((r, k) => {
-    const [col, op] = lineStyle(r.rank, rows.length), pts = vals[r.person];
-    const dPath = pts.map((v, i) => (v == null ? null : [x(i), y(v)])).filter(Boolean)
-      .map(([px, py], i) => (i ? "L" : "M") + px.toFixed(1) + " " + py.toFixed(1)).join(" ");
-    svg.append(sv("path", { d: dPath, fill: "none", stroke: col, "stroke-opacity": op, "stroke-width": op < 1 ? 1.5 : 2.5,
+  const lines = drawn.map((r, k) => {
+    const [col, op] = lineStyle(r.rank, rows.length), pts = vals[r.person], g = sv("g", { class: "ln" });
+    const at = pts.map((v, i) => (v == null ? null : [x(i), y(v)]));
+    const dPath = at.filter(Boolean).map(([px, py], i) => (i ? "L" : "M") + px.toFixed(1) + " " + py.toFixed(1)).join(" ");
+    g.append(sv("path", { d: dPath, fill: "none", stroke: col, "stroke-opacity": op, "stroke-width": op < 1 ? 1.5 : 2.5,
       "stroke-linejoin": "round", "stroke-linecap": "round" }));
-    svg.append(sv("circle", { cx: x(n - 1), cy: y(pts[n - 1]), r: op < 1 ? 3 : 4.5, fill: col, "fill-opacity": op }));
-    txt(svg, x(n - 1) + 10, ends[k], `${r.name} ${fmt(r.total)}`, { fill: col, "fill-opacity": op < 1 ? 0.75 : 1,
+    g.append(sv("circle", { cx: x(n - 1), cy: y(pts[n - 1]), r: op < 1 ? 3 : 4.5, fill: col, "fill-opacity": op }));
+    txt(g, x(n - 1) + 10, ends[k], `${r.name} ${fmt(r.total)}`, { fill: col, "fill-opacity": op < 1 ? 0.75 : 1,
       "font-size": 15, "font-weight": 600, "font-family": "'Barlow Condensed', sans-serif" });
+    svg.append(g);
+    return { person: r.person, name: r.name, col, op, g, pts: at };
   });
+  hoverLayer(svg, days.map((m) => m.date), x, L, T, linePaint(lines, T, H - B, (p, i) => {
+    const v = vals[p][i], dv = v - (i ? vals[p][i - 1] ?? 0 : 0), on = played[p].has(i);
+    return { key: -v, value: fmt(v), cls: tone(v), change: on ? fmt(dv) : null, dcls: on ? tone(dv) : null };
+  }));
   return svg;
 }
 
@@ -435,19 +531,26 @@ function rankChart(d, period, rows) {
   for (const r of ticks) { gridLine(svg, L, W - R, y(r)); txt(svg, L - 8, y(r) + 4, String(r), { "text-anchor": "end", "fill-opacity": 0.7 }); }
   const show = labelAt(n);
   days.forEach((m, i) => { if (show(i)) txt(svg, x(i), H - 9, shortLabel(m.date), { "text-anchor": "middle", "fill-opacity": 0.7 }); });
-  for (const r of rows.slice().reverse()) {
-    const [col, op] = lineStyle(r.rank, N);
-    const pts = ranks[r.person].map((v, i) => (v == null ? null : [x(i), y(v)])).filter(Boolean);
-    svg.append(sv("polyline", { points: pts.map((p) => p.join(",")).join(" "), fill: "none", stroke: col, "stroke-opacity": op,
+  const lines = rows.slice().reverse().map((r) => {
+    const [col, op] = lineStyle(r.rank, N), g = sv("g", { class: "ln" });
+    const at = ranks[r.person].map((v, i) => (v == null ? null : [x(i), y(v)])), pts = at.filter(Boolean);
+    g.append(sv("polyline", { points: pts.map((p) => p.join(",")).join(" "), fill: "none", stroke: col, "stroke-opacity": op,
       "stroke-width": op < 1 ? 1.5 : 2.5, "stroke-linejoin": "round" }));
     const [ex, ey] = pts[pts.length - 1];
-    svg.append(sv("circle", { cx: ex, cy: ey, r: 4, fill: col, "fill-opacity": op }));
-    txt(svg, ex + 10, ey + 4, r.name, { fill: col, "fill-opacity": op < 1 ? 0.75 : 1, "font-weight": 600, "font-size": 13 });
-  }
+    g.append(sv("circle", { cx: ex, cy: ey, r: 4, fill: col, "fill-opacity": op }));
+    txt(g, ex + 10, ey + 4, r.name, { fill: col, "fill-opacity": op < 1 ? 0.75 : 1, "font-weight": 600, "font-size": 13 });
+    svg.append(g);
+    return { person: r.person, name: r.name, col, op, g, pts: at };
+  });
+  hoverLayer(svg, days.map((m) => m.date), x, L, T, linePaint(lines, T, H - B, (p, i) => {
+    const v = ranks[p][i], was = i ? ranks[p][i - 1] : null, dv = was == null ? 0 : was - v;
+    const on = !!dv && days[i].players.some((q) => same(q.person, p));
+    return { key: v, value: "#" + v, change: on ? (dv > 0 ? "▲" : "▼") + Math.abs(dv) : null, dcls: on ? (dv > 0 ? "up" : "down") : null };
+  }));
   return svg;
 }
 
-function activityChart(rows) {
+function activityChart(rows, days) {
   const W = chartW(716), H = 190, L = 52, R = 16, T = 22, B = 30, n = rows.length;
   const { hi, step } = scale(0, Math.max(1, ...rows.map((r) => r.total)), 3);
   const y = (v) => T + (H - T - B) * (hi - v) / hi, slot = (W - L - R) / n, bw = Math.max(2, Math.min(48, slot - 6));
@@ -456,11 +559,19 @@ function activityChart(rows) {
     gridLine(svg, L, W - R, y(v), v === 0);
     txt(svg, L - 8, y(v) + 4, num(v), { "text-anchor": "end", "fill-opacity": 0.7 });
   }
-  rows.forEach((r, i) => {
-    const cx = L + slot * i + slot / 2;
-    svg.append(sv("rect", { x: cx - bw / 2, y: y(r.total), width: bw, height: y(0) - y(r.total), fill: css(r.tag === "home" ? "--ball" : "--onli") }));
+  const X = (i) => L + slot * i + slot / 2;
+  const bars = rows.map((r, i) => {
+    const cx = X(i), bar = sv("rect", { class: "abar", x: cx - bw / 2, y: y(r.total), width: bw, height: y(0) - y(r.total),
+      fill: css(r.tag === "home" ? "--ball" : "--onli") });
+    svg.append(bar);
     if (n <= (narrow() ? 6 : 12)) txt(svg, cx, y(r.total) - 6, num(r.total), { "text-anchor": "middle", "font-weight": 600 });
     if (show(i)) txt(svg, cx, H - 9, shortLabel(r.date), { "text-anchor": "middle", "fill-opacity": 0.7 });
+    return bar;
+  });
+  hoverLayer(svg, rows.map((r) => r.date), X, L, T, (i) => {
+    const r = rows[i], home = r.tag === "home", cnt = days[i]?.players.length ?? 0;
+    return { node: bars[i], nodes: [el("div", { class: "facts" }, el("span", { class: home ? "home" : "onli" }, home ? "Home" : "Online"),
+      el("span", {}, `${num(r.total)} balls in play`), el("span", {}, `${cnt} ${cnt === 1 ? "player" : "players"}`))] };
   });
   return svg;
 }
@@ -496,6 +607,15 @@ function styleChart(d, pts) {
   fixed(W - R - 6, y(0) - 8, "LOOSE · PASSIVE", end, 11, cornerFont, 1.2);
   fixed(L + 44, T + 12, "TIGHT · AGGRESSIVE", corner, 11, cornerFont, 1.2);
   fixed(L + 6, y(0) - 8, "TIGHT · PASSIVE", corner, 11, cornerFont, 1.2);
+  const wt = pts.reduce((s, p) => s + (p.w || 0), 0);
+  const avg = (key) => (wt ? pts.reduce((s, p) => s + p[key] * (p.w || 0), 0) / wt : pts.reduce((s, p) => s + p[key], 0) / pts.length);
+  const mx = avg("x"), my = avg("y"), dash = { stroke: css("--chalk"), "stroke-opacity": 0.4, "stroke-dasharray": "5 4", "stroke-width": 1.2 };
+  svg.append(sv("line", Object.assign({ x1: x(mx), x2: x(mx), y1: T, y2: y(0) }, dash)), sv("line", Object.assign({ x1: L, x2: W - R, y1: y(my), y2: y(my) }, dash)));
+  const tagA = { "fill-opacity": 0.55, "font-size": 10 }, tagFont = "10px Barlow, sans-serif", tags = boxes.length;
+  const vTag = `club avg ${Math.round(mx)}%`, vFits = x(mx) + 5 + wide(vTag, tagFont) <= W - R;
+  fixed(vFits ? x(mx) + 5 : x(mx) - 5, T + 28, vTag, Object.assign({ "text-anchor": vFits ? "start" : "end" }, tagA), 10, tagFont);
+  fixed(W - R - 4, y(my) - 5, `club avg ${Math.round(my)}%`, Object.assign({ "text-anchor": "end" }, tagA), 10, tagFont);
+  const tagBoxes = boxes.slice(tags);
   boxes.push(...pts.map((p) => [x(p.x) - 7, y(p.y) - 7, 14, 14]));
   const nameFont = "600 13px Barlow, sans-serif", nameAttrs = { "font-weight": 600, "font-size": 13 };
   const hit = (a, b) => a[0] < b[0] + b[2] + 2 && b[0] < a[0] + a[2] + 2 && a[1] < b[1] + b[3] + 1 && b[1] < a[1] + a[3] + 1;
@@ -511,7 +631,8 @@ function styleChart(d, pts) {
   };
   const show = (dot, name, cx, cy) => {
     hide();
-    const w = wide(name, nameFont), cand = around(cx, cy, w), b = cand.find(inside) ?? cand[0];
+    const w = wide(name, nameFont), cand = around(cx, cy, w);
+    const b = cand.find((c) => inside(c) && !tagBoxes.some((t) => hit(c, t))) ?? cand.find(inside) ?? cand[0];
     const bx = Math.min(Math.max(b[0], 2), W - 2 - w);
     tip = sv("g", { class: "tip" });
     tip.append(sv("rect", { x: bx - 4, y: b[1] - 2, width: w + 8, height: b[3] + 4, fill: css("--board"), stroke: css("--board-line") }));
@@ -588,7 +709,7 @@ function recordsNode(d, R) {
     tile("Longest losing run", e, e && m(e.value), "", e && span(e)),
     tile("Most match day wins", f, f && f.value, "", f && `top of the match day ${times(f.value)}`),
     tile("Most matches", g, g && g.value, "", null),
-    tile("Biggest comeback", k, k && fmt(k.value), "up", k && `from ${fmt(k.low)} to ${fmt(k.last)}`),
+    tile("Biggest comeback", k, k && fmt(k.value), "up", k && `${fmt(k.low)} → ${fmt(k.end)} on ${shortLabel(k.date)}`),
     tile("Busiest match day", u, u && `${u.value} players`, "", u && `${dayLabel(u.date)} · ${num(u.total)} balls in`, null),
     tile("Biggest downswing", w, w && fmt(w.value), "down", w && span(w)),
     tile("Highest peak", p, p && fmt(p.value), tone(p?.value ?? 0), p && dayLabel(p.date)));
@@ -622,12 +743,18 @@ function ladderView() {
   if (!rows.length) return out.concat(el("p", { class: "empty" }, message("empty")));
   const head = el("div", { class: "row head" }, el("div", { class: "rk" }, "#"), el("div", {}, "Player"), el("div", {}, "Form"),
     el("div", { class: "num wide" }, "Matches"), el("div", { class: "num wide" }, "Win"),
-    el("div", { class: "pnlh" }, el("span", { class: "pnl" }, ballmark(), "PnL")));
+    el("div", { class: "pnlh" }, el("span", { class: "pnl" }, ballmark(), "PnL")), el("div", {}, ""));
   const shown = S.showAll ? rows : rows.slice(0, 10);
-  out.push(el("div", { class: "sb" }, head, shown.map((r) => el("div", { class: "row" + (r.rank === 1 ? " r1" : "") },
-    el("div", { class: "rk" }, r.rank), el("a", { class: "nm", href: "#player-" + r.person }, r.name), formNode(form(d, r.person, 5, period)),
+  const press = (e) => {
+    const a = e.target.closest?.("a.row");
+    if (!a || e.pointerType === "mouse") return;
+    a.classList.add("press");
+    setTimeout(() => a.classList.remove("press"), 220);
+  };
+  out.push(el("div", { class: "sb", onpointerdown: press }, head, shown.map((r) => el("a", { class: "row link" + (r.rank === 1 ? " r1" : ""), href: "#player-" + r.person },
+    el("div", { class: "rk" }, r.rank), el("div", { class: "nm" }, r.name), formNode(form(d, r.person, 5, period), 5),
     el("div", { class: "num wide" }, r.matches), el("div", { class: "num wide" }, Math.round(100 * r.wins / r.matches) + "%"),
-    el("div", { class: "tot " + tone(r.total) }, fmt(r.total))))));
+    el("div", { class: "tot " + tone(r.total) }, pnlParts(r.total)), el("div", { class: "chev", "aria-hidden": "true" }, "›")))));
   if (rows.length > 10 && !S.showAll) {
     out.push(el("div", { class: "pager" }, el("button", { type: "button", onclick: () => { S.showAll = true; draw(); } }, `Show all ${rows.length} ▾`),
       el("em", {}, "Top 10 shown")));
@@ -638,7 +765,7 @@ function ladderView() {
     el("h2", { class: "sec" }, "Records"), recordsNode(d, records(d, period)),
     el("h2", { class: "sec" }, "Head to head"), el("div", { class: "scrollx" }, h2hNode(d, period)),
     el("div", { class: "note" }, "Read across: the first number is the matches the row player finished above the column player, out of the matches both played."),
-    el("h2", { class: "sec" }, "Club activity"), el("div", { class: "chart" }, activityChart(activity(d, period))),
+    el("h2", { class: "sec" }, "Club activity"), el("div", { class: "chart" }, activityChart(activity(d, period), inPeriod(d, period))),
     el("div", { class: "note" }, "Balls in play per match day. Green is a home day, yellow is an online day."),
     el("h2", { class: "sec" }, "Advanced"), adv,
     el("div", { class: "note" }, adv ? "From online days that have a full log. Home days have none." : "No online day in this period has a full log yet."));
@@ -666,7 +793,7 @@ function historyView() {
     let open = S.open.has(r.n), box = open ? detailNode(md) : null;
     const row = el("button", { type: "button", class: "md" + (open ? " open" : ""), "aria-expanded": String(open) },
       el("span", { class: "d" }, dayLabel(r.date)), tagChip(r.tag), el("span", { class: "p" }, `${r.players} players`),
-      el("span", { class: "w " + tone(r.topNet) }, `${r.topName} ${fmt(r.topNet)}`));
+      el("span", { class: "w " + tone(r.topNet) }, `${r.topName} `, pnlParts(r.topNet)));
     row.addEventListener("click", () => {
       open = !open;
       row.classList.toggle("open", open);
@@ -697,12 +824,12 @@ function playerView(person) {
     const p = m.players.find((q) => q.person === person);
     return el("div", { class: "md" }, el("span", { class: "d" }, dayLabel(m.date)), tagChip(m.tag),
       el("span", { class: "p" }, p.handle != null ? el("span", { class: "hn" }, p.handle) : null, p.device != null ? el("span", { class: "dev" }, p.device) : null),
-      el("span", { class: "w " + tone(p.net) }, fmt(p.net)));
+      el("span", { class: "w " + tone(p.net) }, pnlParts(p.net)));
   });
   return [
     el("a", { class: "back", href: "#ladder" }, `‹ Ladder · rank ${row.rank}`),
     el("div", { class: "hero" }, el("h1", { class: "title" }, row.name), el("div", { class: "big " + tone(row.total) }, fmt(row.total), ballmark()),
-      formNode(form(d, person, 7))),
+      formNode(form(d, person, 7), 7)),
     el("div", { class: "tiles" },
       el("div", { class: "tile" }, el("i", {}, "Matches"), el("b", {}, st.played), el("u", {}, `${online} online · ${st.played - online} home`)),
       el("div", { class: "tile" }, el("i", {}, "Win rate"), el("b", {}, st.winRate + "%"), el("u", {}, `${won} of ${st.played} ended up`)),
@@ -710,7 +837,6 @@ function playerView(person) {
       el("div", { class: "tile" }, el("i", {}, "Worst day"), el("b", { class: tone(st.worst.net) || null }, fmt(st.worst.net)), el("u", {}, dayLabel(st.worst.date)))),
     el("div", { class: "headrow mini" }, el("div", { class: "kicker" }, "PnL"), sw),
     chartBox,
-    el("div", { class: "note" }, "A candle is one match day: it opens at the total before the day and closes at the total after it. The thin line is the highest and lowest point during that day, on days with a full log. The number is the day's result."),
     el("div", { class: "kicker", style: "margin-top:16px" }, "Match days"),
     el("div", { class: "sb" }, rowsNode),
   ];
