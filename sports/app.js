@@ -483,10 +483,22 @@ function styleChart(d, pts) {
   txt(svg, W - R - 6, y(0) - 8, "LOOSE · PASSIVE", Object.assign({ "text-anchor": "end" }, corner));
   txt(svg, L + 44, T + 12, "TIGHT · AGGRESSIVE", corner);
   txt(svg, L + 6, y(0) - 8, "TIGHT · PASSIVE", corner);
-  for (const p of pts) {
-    svg.append(sv("circle", { cx: x(p.x), cy: y(p.y), r: 6, fill: css("--ball") }));
-    txt(svg, x(p.x) + 10, y(p.y) + 4, p.name, { "font-weight": 600, "font-size": 13 });
-  }
+  const boxes = pts.map((p) => [x(p.x) - 7, y(p.y) - 7, 14, 14]);
+  const ctx = document.createElement("canvas").getContext("2d");
+  if (ctx) ctx.font = "600 13px Barlow, sans-serif";
+  const hit = (a, b) => a[0] < b[0] + b[2] + 2 && b[0] < a[0] + a[2] + 2 && a[1] < b[1] + b[3] + 1 && b[1] < a[1] + a[3] + 1;
+  const fits = (b) => b[0] >= L && b[0] + b[2] <= W - 2 && b[1] >= 0 && b[1] + b[3] <= y(0) + 3 && !boxes.some((o) => hit(b, o));
+  const spots = pts.map((p) => {
+    const cx = x(p.x), cy = y(p.y), w = Math.ceil(ctx ? ctx.measureText(p.name).width : p.name.length * 8) + 2;
+    const spot = [[cx + 10, cy - 8], [cx - 10 - w, cy - 8], [cx - w / 2, cy - 23], [cx - w / 2, cy + 8]]
+      .map(([bx, by]) => [bx, by, w, 15]).find(fits);
+    if (spot) boxes.push(spot);
+    const dot = sv("circle", { cx, cy, r: 6, fill: css("--ball") });
+    if (!spot) dot.append(sv("title", {}, p.name));
+    svg.append(dot);
+    return spot;
+  });
+  pts.forEach((p, i) => { if (spots[i]) txt(svg, spots[i][0], spots[i][1] + 12, p.name, { "font-weight": 600, "font-size": 13 }); });
   return svg;
 }
 
@@ -806,6 +818,7 @@ function themeMenu() {
 
 function start(d) {
   S.d = d;
+  draw();
   const u = document.getElementById("upd");
   if (isDay(d.updated)) u.append("Updated ", el("b", {}, dayLabel(d.updated).slice(0, 3)), " " + shortLabel(d.updated));
   document.getElementById("gate").remove();
@@ -813,7 +826,6 @@ function start(d) {
   themeMenu();
   addEventListener("hashchange", draw);
   matchMedia("(max-width: 600px)").addEventListener("change", draw);
-  draw();
 }
 
 function boot() {
@@ -841,14 +853,21 @@ function boot() {
       pending = null;
       err.textContent = message("load");
     }
+    let d = null;
     if (bytes) {
       try {
-        const d = await decrypt(bytes, typed);
-        start(d);
-        return;
+        d = await decrypt(bytes, typed);
       } catch {
         err.textContent = message("wrong");
         pw.select();
+      }
+    }
+    if (d) {
+      try {
+        start(d);
+        return;
+      } catch {
+        err.textContent = message("load");
       }
     }
     busy = false;
