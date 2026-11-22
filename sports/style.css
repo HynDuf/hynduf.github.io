@@ -312,6 +312,8 @@ a.back { display: inline-block; font: 600 13px/1 var(--disp); letter-spacing: .1
   .gatebox .club { font-size: 28px; }
   .gatebox .in { width: 170px; }
   .md { grid-template-columns: 71px 58px minmax(0, 1fr) auto; padding: 0 10px; column-gap: 12px; }
+  /* Narrow rows keep only the session time; the player count and the note open with the day. */
+  .md .p .stime ~ .pcount, .md .p .snote { display: none; }
   .md .w { grid-column: 4; font-size: 16px; }
   .md .d { font-size: 16px; }
   .md .p { font-size: 12px; }

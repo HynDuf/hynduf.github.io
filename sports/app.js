@@ -892,7 +892,8 @@ function dayRow(r, md) {
   let open = S.open.has(r.n), box = open ? detailNode(md) : null;
   const row = el("button", { type: "button", class: "md" + (open ? " open" : ""), "aria-expanded": String(open), "data-n": r.n },
     el("span", { class: "d" }, dayLabel(r.date)), tagPill(r.tag),
-    el("span", { class: "p" }, `${md.time ? md.time + " · " : ""}${r.players} players${md.note ? " · note" : ""}`),
+    el("span", { class: "p" }, md.time ? el("span", { class: "stime" }, md.time) : null, el("span", { class: "pcount" }, `${md.time ? " · " : ""}${r.players} players`),
+      md.note ? el("span", { class: "snote" }, " · note") : null),
     el("span", { class: "w " + tone(r.topNet) }, `${r.topName} `, pnlParts(r.topNet)));
   row.addEventListener("click", () => {
     open = !open;
@@ -919,7 +920,7 @@ function groupNode(g, byN) {
   const box = el("section", { class: "sg" + (open ? " open" : "") });
   const btn = el("button", { type: "button", class: "sgt", "aria-expanded": String(open) }, el("span", { class: "tw", "aria-hidden": "true" }, "›"),
     el("span", { class: "st" }, g.date ? "Settled " + dayLabel(g.date) : "Not settled yet"),
-    el("span", { class: "cn" }, `${g.rows.length} ${g.rows.length === 1 ? "day" : "days"}`),
+    el("span", { class: "cn" }, ((n) => `${n} ${n === 1 ? "day" : "days"}`)(new Set(g.rows.map((r) => r.date)).size)),
     el("span", { class: "edge" }, edges.flatMap((x, i) => (i ? [el("em", {}, " · "), x] : [x]))));
   btn.addEventListener("click", () => {
     open = !open;
