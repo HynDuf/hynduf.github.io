@@ -811,7 +811,7 @@ function detailNode(md) {
   const head = el("tr", {}, el("th", {}, "Player"), online ? el("th", { class: "hcol" }, "Name") : null,
     el("th", {}, "Balls in"), el("th", {}, "Balls out"), el("th", {}, ballmark(), "PnL"));
   const links = (md.audit ?? []).filter((a) => !(online && a.kind === "entry"));
-  return el("div", { class: "detail" }, auditNode(links), el("table", {}, head, rows.map((r) => el("tr", {},
+  return el("div", { class: "detail" }, auditNode(links), md.note ? el("p", { class: "dnote" }, md.note) : null, el("table", {}, head, rows.map((r) => el("tr", {},
     el("td", {}, el("a", { href: "#player-" + r.person }, r.name)),
     online ? el("td", { class: "hcol" }, r.handle != null ? el("span", { class: "hn" }, r.handle) : "") : null,
     el("td", {}, num(r.in)), el("td", {}, num(r.out)), el("td", { class: tone(r.net) || null }, fmt(r.net))))));
@@ -891,7 +891,8 @@ function auditNode(links) {
 function dayRow(r, md) {
   let open = S.open.has(r.n), box = open ? detailNode(md) : null;
   const row = el("button", { type: "button", class: "md" + (open ? " open" : ""), "aria-expanded": String(open), "data-n": r.n },
-    el("span", { class: "d" }, dayLabel(r.date)), tagPill(r.tag), el("span", { class: "p" }, `${r.players} players`),
+    el("span", { class: "d" }, dayLabel(r.date)), tagPill(r.tag),
+    el("span", { class: "p" }, `${md.time ? md.time + " · " : ""}${r.players} players${md.note ? " · note" : ""}`),
     el("span", { class: "w " + tone(r.topNet) }, `${r.topName} `, pnlParts(r.topNet)));
   row.addEventListener("click", () => {
     open = !open;

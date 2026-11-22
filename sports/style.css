@@ -160,6 +160,7 @@ button.md:hover { background: var(--court-deep); }
 .sset .pills { margin-top: 10px; }
 .pills { display: flex; flex-wrap: wrap; gap: 6px 8px; }
 .detail .pills { padding: 6px 0 8px; }
+.detail .dnote { margin: 6px 0 8px; padding: 8px 10px; border-left: 3px solid var(--ball); background: color-mix(in srgb, var(--court-deep), var(--chalk) 6%); font: 400 14px/1.45 var(--text); }
 .pill { display: inline-flex; align-items: stretch; max-width: 100%; border: 1px solid var(--board-line); background: var(--board); font-size: 13px; }
 .pill .cl { display: inline-flex; align-items: center; gap: 7px; min-width: 0; min-height: 30px; padding: 0 9px; }
 .pill .cl i { font: 600 11px/1 var(--disp); font-style: normal; letter-spacing: .12em; text-transform: uppercase; opacity: .65; white-space: nowrap; }
