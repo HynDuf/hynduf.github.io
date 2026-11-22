@@ -143,8 +143,10 @@ button.md:hover { background: var(--court-deep); }
 .sgt { display: grid; grid-template-columns: 16px auto auto minmax(0, 1fr); align-items: baseline; column-gap: 10px; width: 100%; min-height: 48px; padding: 13px 14px; }
 .sgt:hover { background: color-mix(in srgb, var(--board), var(--chalk) 5%); }
 .sgt:focus-visible { outline: 2px solid var(--ball); outline-offset: -2px; }
-.sgt .tw { font: 600 20px/1 var(--disp); opacity: .55; transition: transform .12s; text-align: center; align-self: center; }
-.sg.open .sgt .tw { transform: rotate(90deg); }
+/* Drawn, not a "›" glyph: the glyph sat below the cap line of the title next to it. */
+.sgt .tw { font-size: 0; width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; opacity: .55;
+  justify-self: center; align-self: center; transform: translateY(-1px) rotate(-45deg); transition: transform .12s; }
+.sg.open .sgt .tw { transform: translateY(-3px) rotate(45deg); }
 .sgt .st { font: 700 19px/1 var(--disp); letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; }
 .sgt .cn { font: 500 13px/1 var(--text); opacity: .6; white-space: nowrap; }
 .sgt .edge { justify-self: end; text-align: right; font: 600 16px/1 var(--disp); letter-spacing: .02em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
